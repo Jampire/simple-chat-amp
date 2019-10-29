@@ -1,16 +1,62 @@
 <?php
 
-$uri = 'tcp://127.0.0.1:1337';
+require_once __DIR__ . '/vendor/autoload.php';
 
-$flags = STREAM_SERVER_BIND | STREAM_SERVER_LISTEN;
-$serverSocket = @stream_socket_server($uri, $errno, $errstr, $flags);
+use Amp\Loop;
+use Amp\Socket\Socket;
+use Amp\Socket\Server;
+use function Amp\asyncCall;
 
-if ( ! $serverSocket || $errno) {
-    die(sprintf("Could not create server: %s: [Errno: #%d] %s", $uri, $errno, $errstr));
-}
+Loop::run(static function () {
+    $server = new class
+    {
+        private $uri = 'tcp://127.0.0.1:1337';
 
-while ($client = stream_socket_accept($serverSocket, -1)) {
-    while (($line = fgets($client)) !== false) {
-        fwrite($client, $line);
-    }
-}
+        // $clientAddr => $client
+        private $clients = [];
+
+        public function listen(): void
+        {
+            asyncCall(function () {
+                $server = Server::listen($this->uri);
+
+                echo 'Listening on ', $server->getAddress(), ' ...', PHP_EOL;
+
+                while ($socket = yield $server->accept()) {
+                    $this->handleClient($socket);
+                }
+            });
+        }
+
+        public function handleClient(Socket $socket): void
+        {
+            asyncCall(static function () use ($socket) {
+                $remoteAddr = $socket->getRemoteAddress();
+
+                echo "Accepted new client: {$remoteAddr}" . PHP_EOL;
+                $this->broadcast($remoteAddr . ' joined the chat.' . PHP_EOL);
+
+                $this->clients[(string)$remoteAddr] = $socket;
+
+                while (null !== $chunk = yield $socket->read()) {
+                    $this->broadcast($remoteAddr . ' says: ' . trim($chunk) . PHP_EOL);
+                }
+
+                unset($this->clients[(string)$remoteAddr]);
+
+                echo "Client disconnected: {$remoteAddr}" . PHP_EOL;
+                $this->broadcast($remoteAddr . ' left the chat.' . PHP_EOL);
+            });
+        }
+
+        private function broadcast(string $message): void
+        {
+            /** @var Socket $client */
+            foreach ($this->clients as $client) {
+                $client->write($message);
+            }
+        }
+    };
+
+    $server->listen();
+});
