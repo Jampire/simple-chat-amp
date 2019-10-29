@@ -7,13 +7,15 @@ use Amp\Socket\Socket;
 use Amp\Socket\Server;
 use function Amp\asyncCall;
 
-Loop::run(static function () {
+Loop::run(function () {
     $server = new class
     {
         private $uri = 'tcp://127.0.0.1:1337';
 
         // $clientAddr => $client
         private $clients = [];
+
+        private $usernames = [];
 
         public function listen(): void
         {
@@ -30,7 +32,7 @@ Loop::run(static function () {
 
         public function handleClient(Socket $socket): void
         {
-            asyncCall(static function () use ($socket) {
+            asyncCall(function () use ($socket) {
                 $remoteAddr = $socket->getRemoteAddress();
 
                 echo "Accepted new client: {$remoteAddr}" . PHP_EOL;
@@ -43,12 +45,13 @@ Loop::run(static function () {
                     $buffer .= $chunk;
 
                     while (($pos = strpos($buffer, PHP_EOL)) !== false) {
-                        $this->broadcast($remoteAddr . ' says: ' . substr($buffer, 0, $pos) . PHP_EOL);
+                        $this->handleMessage($socket, substr($buffer, 0, $pos));
                         $buffer = substr($buffer, $pos + 1);
                     }
                 }
 
                 unset($this->clients[(string)$remoteAddr]);
+                unset($this->usernames[(string)$remoteAddr]);
 
                 echo "Client disconnected: {$remoteAddr}" . PHP_EOL;
                 $this->broadcast($remoteAddr . ' left the chat.' . PHP_EOL);
@@ -60,6 +63,8 @@ Loop::run(static function () {
             if ($message === '') {
                 return;
             }
+
+            $remoteAddrStr = (string)$socket->getRemoteAddress();
 
             if (strpos($message, '/') === 0) {
                 $message = substr($message, 1);
@@ -76,6 +81,24 @@ Loop::run(static function () {
                     case 'down':
                         $socket->write(strtolower(implode(' ', $args)) . PHP_EOL);
                         break;
+                    case 'exit':
+                        $socket->end('Bye.' . PHP_EOL);
+                        break;
+                    case 'nick':
+                        $nick = implode(' ', $args);
+
+                        if (!preg_match('/^[a-z0-9-.]{3,15}$/i', $nick)) {
+                            $error = 'Username must only contain letters, digits and ' .
+                                'its length must be between 3 and 15 characters.';
+                            $socket->write($error . PHP_EOL);
+                            return;
+                        }
+
+                        $oldNick = $this->usernames[$remoteAddrStr] ?? $remoteAddrStr;
+                        $this->usernames[$remoteAddrStr] = $nick;
+
+                        $this->broadcast($oldNick . ' is now ' . $nick . PHP_EOL);
+                        break;
                     default:
                         $socket->write("Unknown command: {$name}" . PHP_EOL);
                 }
@@ -83,7 +106,8 @@ Loop::run(static function () {
                 return;
             }
 
-            $this->broadcast($socket->getRemoteAddress() . ' says: ' . $message . PHP_EOL);
+            $user = $this->usernames[$remoteAddrStr] ?? $remoteAddrStr;
+            $this->broadcast($user . ' says: ' . $message . PHP_EOL);
         }
 
         private function broadcast(string $message): void
