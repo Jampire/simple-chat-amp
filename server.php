@@ -38,8 +38,14 @@ Loop::run(static function () {
 
                 $this->clients[(string)$remoteAddr] = $socket;
 
+                $buffer = '';
                 while (null !== $chunk = yield $socket->read()) {
-                    $this->broadcast($remoteAddr . ' says: ' . trim($chunk) . PHP_EOL);
+                    $buffer .= $chunk;
+
+                    while (($pos = strpos($buffer, PHP_EOL)) !== false) {
+                        $this->broadcast($remoteAddr . ' says: ' . substr($buffer, 0, $pos) . PHP_EOL);
+                        $buffer = substr($buffer, $pos + 1);
+                    }
                 }
 
                 unset($this->clients[(string)$remoteAddr]);
@@ -47,6 +53,37 @@ Loop::run(static function () {
                 echo "Client disconnected: {$remoteAddr}" . PHP_EOL;
                 $this->broadcast($remoteAddr . ' left the chat.' . PHP_EOL);
             });
+        }
+
+        public function handleMessage(Socket $socket, string $message): void
+        {
+            if ($message === '') {
+                return;
+            }
+
+            if (strpos($message, '/') === 0) {
+                $message = substr($message, 1);
+                $args = explode(' ', $message);
+                $name = strtolower(array_shift($args));
+
+                switch ($name) {
+                    case 'time':
+                        $socket->write(date("l js \of F Y h:i:s A") . PHP_EOL);
+                        break;
+                    case 'up':
+                        $socket->write(strtoupper(implode(' ', $args)) . PHP_EOL);
+                        break;
+                    case 'down':
+                        $socket->write(strtolower(implode(' ', $args)) . PHP_EOL);
+                        break;
+                    default:
+                        $socket->write("Unknown command: {$name}" . PHP_EOL);
+                }
+
+                return;
+            }
+
+            $this->broadcast($socket->getRemoteAddress() . ' says: ' . $message . PHP_EOL);
         }
 
         private function broadcast(string $message): void
