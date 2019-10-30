@@ -50,11 +50,11 @@ Loop::run(function () {
                     }
                 }
 
-                unset($this->clients[(string)$remoteAddr]);
-                unset($this->usernames[(string)$remoteAddr]);
+                $user = $this->getUsername($socket);
+                unset($this->clients[(string)$remoteAddr], $this->usernames[(string)$remoteAddr]);
 
                 echo "Client disconnected: {$remoteAddr}" . PHP_EOL;
-                $this->broadcast($remoteAddr . ' left the chat.' . PHP_EOL);
+                $this->broadcast("{$user} left the chat." . PHP_EOL);
             });
         }
 
@@ -64,7 +64,7 @@ Loop::run(function () {
                 return;
             }
 
-            $remoteAddrStr = (string)$socket->getRemoteAddress();
+            $shouldReturn = true;
 
             if (strpos($message, '/') === 0) {
                 $message = substr($message, 1);
@@ -76,10 +76,14 @@ Loop::run(function () {
                         $socket->write(date("l js \of F Y h:i:s A") . PHP_EOL);
                         break;
                     case 'up':
-                        $socket->write(strtoupper(implode(' ', $args)) . PHP_EOL);
+                        $message = strtoupper(implode(' ', $args));
+                        $shouldReturn = false;
+                        $socket->write($message . PHP_EOL);
                         break;
                     case 'down':
-                        $socket->write(strtolower(implode(' ', $args)) . PHP_EOL);
+                        $message = strtolower(implode(' ', $args));
+                        $shouldReturn = false;
+                        $socket->write($message . PHP_EOL);
                         break;
                     case 'exit':
                         $socket->end('Bye.' . PHP_EOL);
@@ -94,8 +98,8 @@ Loop::run(function () {
                             return;
                         }
 
-                        $oldNick = $this->usernames[$remoteAddrStr] ?? $remoteAddrStr;
-                        $this->usernames[$remoteAddrStr] = $nick;
+                        $oldNick = $this->getUsername($socket);
+                        $this->setUsername($socket, $nick);
 
                         $this->broadcast($oldNick . ' is now ' . $nick . PHP_EOL);
                         break;
@@ -103,11 +107,12 @@ Loop::run(function () {
                         $socket->write("Unknown command: {$name}" . PHP_EOL);
                 }
 
-                return;
+                if ($shouldReturn) {
+                    return;
+                }
             }
 
-            $user = $this->usernames[$remoteAddrStr] ?? $remoteAddrStr;
-            $this->broadcast($user . ' says: ' . $message . PHP_EOL);
+            $this->broadcast($this->getUsername($socket) . ' says: ' . $message . PHP_EOL);
         }
 
         private function broadcast(string $message): void
@@ -116,6 +121,17 @@ Loop::run(function () {
             foreach ($this->clients as $client) {
                 $client->write($message);
             }
+        }
+
+        private function setUsername(Socket $socket, string $name): void
+        {
+            $this->usernames[(string)$socket->getRemoteAddress()] = $name;
+        }
+
+        private function getUsername(Socket $socket): string
+        {
+            $remoteAddr = (string)$socket->getRemoteAddress();
+            return $this->usernames[$remoteAddr] ?? $remoteAddr;
         }
     };
 
