@@ -15,14 +15,12 @@ Loop::run(function () {
         // $clientAddr => $client
         private $clients = [];
 
-        private $usernames = [];
-
         public function listen(): void
         {
             asyncCall(function () {
                 $server = Server::listen($this->uri);
 
-                echo 'Listening on ', $server->getAddress(), ' ...', PHP_EOL;
+                echo 'Listening on ', $server->getAddress(), '...', PHP_EOL;
 
                 while ($socket = yield $server->accept()) {
                     $this->handleClient($socket);
@@ -107,7 +105,7 @@ Loop::run(function () {
                             return;
                         }
 
-                        $oldNick = $this->getUsername($socket);
+                        $oldNick = $this->getClient($socket, 'old-name');
                         $this->setUsername($socket, $nick);
 
                         if ($oldNick !== $nick) {
@@ -137,7 +135,7 @@ Loop::run(function () {
                         $this->setClient($socket, 'name', $nick);
                         $this->setClient($socket, 'password', password_hash($password, PASSWORD_BCRYPT));
 
-                        $socket->write("You are registered with name {$nick}.");
+                        $socket->write("You are registered with name {$nick}." . PHP_EOL);
                         break;
                     default:
                         $socket->write("Unknown command: {$name}" . PHP_EOL);
@@ -160,6 +158,7 @@ Loop::run(function () {
 
         private function setUsername(Socket $socket, string $name): void
         {
+            $this->setClient($socket, 'old-name', $this->getUsername($socket));
             $this->setClient($socket, 'name', $name);
         }
 
@@ -173,7 +172,12 @@ Loop::run(function () {
             $remoteAddr = (string)$socket->getRemoteAddress();
             if (!isset($this->clients[$remoteAddr])) {
                 $this->clients[$remoteAddr] = [];
-                $this->clients[$remoteAddr]['socket'] = $socket;
+                $this->clients[$remoteAddr] = [
+                    'socket' => $socket,
+                    'old-name' => $remoteAddr,
+                    'name' => '',
+                    'password' => '',
+                ];
             }
 
             $this->clients[$remoteAddr][$key] = $data;
@@ -190,7 +194,7 @@ Loop::run(function () {
                 return $this->clients[$remoteAddr];
             }
 
-            return $this->clients[$remoteAddr][$key];
+            return $this->clients[$remoteAddr][$key] ?? null;
         }
 
         private function deleteClient(Socket $socket): void
@@ -204,7 +208,7 @@ Loop::run(function () {
         private function isUserExists(string $name): bool
         {
             foreach ($this->clients as $client) {
-                if ($client['name'] === $name) {
+                if (isset($client['name']) && $client['name'] === $name) {
                     return true;
                 }
             }
