@@ -38,7 +38,7 @@ Loop::run(function () {
                 echo "Accepted new client: {$remoteAddr}" . PHP_EOL;
                 $this->broadcast($remoteAddr . ' joined the chat.' . PHP_EOL);
 
-                $this->clients[(string)$remoteAddr] = $socket;
+                $this->setClient($socket, 'socket', $socket);
 
                 $buffer = '';
                 while (null !== $chunk = yield $socket->read()) {
@@ -51,7 +51,7 @@ Loop::run(function () {
                 }
 
                 $user = $this->getUsername($socket);
-                unset($this->clients[(string)$remoteAddr], $this->usernames[(string)$remoteAddr]);
+                $this->deleteClient($socket);
 
                 echo "Client disconnected: {$remoteAddr}" . PHP_EOL;
                 $this->broadcast("{$user} left the chat." . PHP_EOL);
@@ -89,19 +89,55 @@ Loop::run(function () {
                         $socket->end('Bye.' . PHP_EOL);
                         break;
                     case 'nick':
-                        $nick = implode(' ', $args);
+                        if (count($args) !== 2) {
+                            $socket->write('Please, enter name and password.' . PHP_EOL);
+                            return;
+                        }
 
-                        if (!preg_match('/^[a-z0-9-.]{3,15}$/i', $nick)) {
-                            $error = 'Username must only contain letters, digits and ' .
-                                'its length must be between 3 and 15 characters.';
-                            $socket->write($error . PHP_EOL);
+                        [$nick, $password] = $args;
+
+                        if (!$this->isUserExists($nick)) {
+                            $socket->write('You are not registered. Please, register first.' . PHP_EOL);
+                            return;
+                        }
+
+                        $passwordHash = $this->getClientByName($nick)['password'];
+                        if (!password_verify($password, $passwordHash)) {
+                            $socket->write('Wrong password or username.' . PHP_EOL);
                             return;
                         }
 
                         $oldNick = $this->getUsername($socket);
                         $this->setUsername($socket, $nick);
 
-                        $this->broadcast($oldNick . ' is now ' . $nick . PHP_EOL);
+                        if ($oldNick !== $nick) {
+                            $this->broadcast($oldNick . ' is now ' . $nick . PHP_EOL);
+                        }
+                        break;
+                    case 'register':
+                        if (count($args) !== 2) {
+                            $socket->write('Please, enter name and password.' . PHP_EOL);
+                            return;
+                        }
+
+                        [$nick, $password] = $args;
+
+                        if ($this->isUserExists($nick)) {
+                            $socket->write('User already exists. Please, use another name.' . PHP_EOL);
+                            return;
+                        }
+
+                        if (!preg_match('/^[a-z0-9-.]{3,15}$/i', $nick)) {
+                            $error = 'Username must only contain letters, digits and ' .
+                                     'its length must be between 3 and 15 characters.';
+                            $socket->write($error . PHP_EOL);
+                            return;
+                        }
+
+                        $this->setClient($socket, 'name', $nick);
+                        $this->setClient($socket, 'password', password_hash($password, PASSWORD_BCRYPT));
+
+                        $socket->write("You are registered with name {$nick}.");
                         break;
                     default:
                         $socket->write("Unknown command: {$name}" . PHP_EOL);
@@ -117,21 +153,74 @@ Loop::run(function () {
 
         private function broadcast(string $message): void
         {
-            /** @var Socket $client */
             foreach ($this->clients as $client) {
-                $client->write($message);
+                $client['socket']->write($message);
             }
         }
 
         private function setUsername(Socket $socket, string $name): void
         {
-            $this->usernames[(string)$socket->getRemoteAddress()] = $name;
+            $this->setClient($socket, 'name', $name);
         }
 
         private function getUsername(Socket $socket): string
         {
+            return $this->getClient($socket, 'name');
+        }
+
+        private function setClient(Socket $socket, string $key, $data): void
+        {
             $remoteAddr = (string)$socket->getRemoteAddress();
-            return $this->usernames[$remoteAddr] ?? $remoteAddr;
+            if (!isset($this->clients[$remoteAddr])) {
+                $this->clients[$remoteAddr] = [];
+                $this->clients[$remoteAddr]['socket'] = $socket;
+            }
+
+            $this->clients[$remoteAddr][$key] = $data;
+        }
+
+        private function getClient(Socket $socket, string $key = null)
+        {
+            $remoteAddr = (string)$socket->getRemoteAddress();
+            if (!isset($this->clients[$remoteAddr])) {
+                return null;
+            }
+
+            if (empty($key)) {
+                return $this->clients[$remoteAddr];
+            }
+
+            return $this->clients[$remoteAddr][$key];
+        }
+
+        private function deleteClient(Socket $socket): void
+        {
+            $remoteAddr = (string)$socket->getRemoteAddress();
+            if (isset($this->clients[$remoteAddr])) {
+                unset($this->clients[$remoteAddr]);
+            }
+        }
+
+        private function isUserExists(string $name): bool
+        {
+            foreach ($this->clients as $client) {
+                if ($client['name'] === $name) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private function getClientByName(string $name): ?array
+        {
+            foreach ($this->clients as $client) {
+                if (isset($client['name']) && $client['name'] === $name) {
+                    return $client;
+                }
+            }
+
+            return null;
         }
     };
 
