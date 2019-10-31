@@ -5,20 +5,36 @@ require_once __DIR__ . '/vendor/autoload.php';
 use Amp\Loop;
 use Amp\Socket\Socket;
 use Amp\Socket\Server;
+use Amp\Delayed;
+use Amp\Redis\Config;
+use Amp\Redis\Redis;
+use Amp\Redis\RemoteExecutor;
+use Amp\Redis\Subscriber;
+use Amp\Redis\RedisException;
+use Amp\Redis\Subscription;
 use function Amp\asyncCall;
 
 Loop::run(function () {
     $server = new class
     {
-        private $uri = 'tcp://127.0.0.1:1337';
+        private $uri = 'tcp://127.0.0.1:0';
+
+        private $redisHost = "tcp://localhost:6379";
 
         // $clientAddr => $client
         private $clients = [];
 
+        /** @var Redis */
+        private $redisClient;
+
         public function listen(): void
         {
             asyncCall(function () {
+                $remoteExecutor = new RemoteExecutor((Config::fromUri($this->redisHost)));
+                $this->redisClient = new Redis($remoteExecutor);
+
                 $server = Server::listen($this->uri);
+                $this->listenToRedis();
 
                 echo 'Listening on ', $server->getAddress(), '...', PHP_EOL;
 
@@ -151,6 +167,11 @@ Loop::run(function () {
 
         private function broadcast(string $message): void
         {
+            $this->redisClient->publish('chat', $message);
+        }
+
+        private function broadcastRaw(string $message): void
+        {
             foreach ($this->clients as $client) {
                 $client['socket']->write($message);
             }
@@ -225,6 +246,27 @@ Loop::run(function () {
             }
 
             return null;
+        }
+
+        private function listenToRedis()
+        {
+            asyncCall(function () {
+                $redisClient = new Subscriber(Config::fromUri($this->redisHost));
+
+                do {
+                    try {
+                        /** @var Subscription $subscription */
+                        $subscription = yield $redisClient->subscribe('chat');
+
+                        while (yield $subscription->advance()) {
+                            $message = $subscription->getCurrent();
+                            $this->broadcastRaw($message);
+                        }
+                    } catch (RedisException $e) {
+                        yield new Delayed(1000);
+                    }
+                } while (true);
+            });
         }
     };
 

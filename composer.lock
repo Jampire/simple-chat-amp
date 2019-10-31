@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "60bf7c82f21f303008f56ab5fa7664ac",
+    "content-hash": "8c1e7c0655eb5a316fc80f143a6c6d15",
     "packages": [
         {
             "name": "amphp/amp",
@@ -372,6 +372,63 @@
             "time": "2019-02-26T16:33:03+00:00"
         },
         {
+            "name": "amphp/redis",
+            "version": "v1.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/amphp/redis.git",
+                "reference": "a3d976bce81f709a1f07ee6e5f3ccdee9bcb4f5c"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/amphp/redis/zipball/a3d976bce81f709a1f07ee6e5f3ccdee9bcb4f5c",
+                "reference": "a3d976bce81f709a1f07ee6e5f3ccdee9bcb4f5c",
+                "shasum": ""
+            },
+            "require": {
+                "amphp/amp": "^2.2.1",
+                "amphp/cache": "^1.2.1",
+                "amphp/socket": "^1",
+                "amphp/sync": "^1.1",
+                "league/uri-parser": "^1.4",
+                "php": ">=7.1"
+            },
+            "require-dev": {
+                "amphp/php-cs-fixer-config": "dev-master",
+                "amphp/phpunit-util": "^1.1.2",
+                "phpunit/phpunit": "^7 | ^8"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Amp\\Redis\\": "src"
+                },
+                "files": [
+                    "src/functions.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Niklas Keller",
+                    "email": "me@kelunik.com"
+                }
+            ],
+            "description": "A non-blocking Redis client for Amp.",
+            "homepage": "https://github.com/amphp/redis",
+            "keywords": [
+                "amp",
+                "amphp",
+                "async",
+                "client",
+                "redis"
+            ],
+            "time": "2019-10-24T22:03:44+00:00"
+        },
+        {
             "name": "amphp/socket",
             "version": "v1.0.0",
             "source": {
@@ -440,6 +497,63 @@
                 "tls"
             ],
             "time": "2019-08-01T19:32:46+00:00"
+        },
+        {
+            "name": "amphp/sync",
+            "version": "v1.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/amphp/sync.git",
+                "reference": "dae12b6bd1aef8f720edf8ceb4595c57a1a1b7db"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/amphp/sync/zipball/dae12b6bd1aef8f720edf8ceb4595c57a1a1b7db",
+                "reference": "dae12b6bd1aef8f720edf8ceb4595c57a1a1b7db",
+                "shasum": ""
+            },
+            "require": {
+                "amphp/amp": "^2.2",
+                "php": ">=7.1"
+            },
+            "require-dev": {
+                "amphp/php-cs-fixer-config": "dev-master",
+                "amphp/phpunit-util": "^1.1",
+                "phpunit/phpunit": "^8 || ^7"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Amp\\Sync\\": "src"
+                },
+                "files": [
+                    "src/functions.php"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Aaron Piotrowski",
+                    "email": "aaron@trowski.com"
+                },
+                {
+                    "name": "Stephen Coakley",
+                    "email": "me@stephencoakley.com"
+                }
+            ],
+            "description": "Mutex, Semaphore, and other synchronization tools for Amp.",
+            "homepage": "https://github.com/amphp/sync",
+            "keywords": [
+                "async",
+                "asynchronous",
+                "mutex",
+                "semaphore",
+                "synchronization"
+            ],
+            "time": "2019-09-26T20:57:15+00:00"
         },
         {
             "name": "amphp/windows-registry",

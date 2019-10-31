@@ -10,7 +10,8 @@
         }
     ],
     "require": {
-        "amphp/socket": "^1.0"
+        "amphp/socket": "^1.0",
+        "amphp/redis": "^1.0"
     }
     ,
     "require-dev": {
